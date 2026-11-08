@@ -7,7 +7,8 @@ It takes 30–60 minutes, mostly waiting for packages to download.
 
 - A PC that can boot Arch Linux (UEFI; systemd-boot is assumed but not required)
 - An internet connection
-- This repository on GitHub (`<user>/dotfiles`)
+- This repository on GitHub (`knkch/dotfiles`)
+- A phone or another PC to approve the GitHub login
 
 ## 1. Install Arch Linux
 
@@ -26,13 +27,17 @@ If you need Wi-Fi: `nmcli device wifi connect "<SSID>" --ask`
 
 ## 2. Get the repository
 
+The repository is private, so sign in to GitHub first. The easiest way on a fresh console is the GitHub CLI device login: it shows a short code that you enter on another device (phone or PC).
+
 ```sh
-sudo pacman -S --needed chezmoi git
-chezmoi init <github-user>
+sudo pacman -S --needed chezmoi git github-cli
+gh auth login        # GitHub.com -> HTTPS -> Login with a web browser
+gh auth setup-git    # let git use the gh login
+chezmoi init knkch
 ```
 
-`chezmoi init <github-user>` clones `https://github.com/<github-user>/dotfiles`.
-For a private repository, use an SSH URL or sign in first (see [Private repository](#private-repository)).
+`gh auth login` prints a code like `ABCD-1234`. Open https://github.com/login/device on your phone, enter the code and approve.
+`chezmoi init knkch` clones `https://github.com/knkch/dotfiles`. (If the repository is public, skip the `gh` steps.)
 
 You are asked two questions once:
 
@@ -82,18 +87,13 @@ The tuigreet login screen appears. Log in and Awesome starts.
   - Tailscale: `sudo systemctl enable --now tailscaled && sudo tailscale up`
   - Metasploit database: `msfdb init --component database`
 
-## Private repository
+## Using SSH instead of `gh`
 
-`chezmoi init` can't clone a private repository without credentials. Either:
-
-- **SSH key**: create a key, add `~/.ssh/id_ed25519.pub` in GitHub → Settings → SSH and GPG keys, then
-
-  ```sh
-  ssh-keygen -t ed25519
-  chezmoi init git@github.com:<github-user>/dotfiles.git
-  ```
-
-- **GitHub Desktop**: install it after `setup.sh` (it's in `packages/aur.txt`), sign in, and clone the repository to `~/.local/share/chezmoi`. Then run `chezmoi init` and `chezmoi apply`.
+```sh
+ssh-keygen -t ed25519
+cat ~/.ssh/id_ed25519.pub      # add this in GitHub -> Settings -> SSH and GPG keys
+chezmoi init git@github.com:knkch/dotfiles.git
+```
 
 ## Troubleshooting
 
