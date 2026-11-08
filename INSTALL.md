@@ -61,7 +61,7 @@ It asks for your sudo password when needed. It runs these steps in order:
 | `aur` | Installs yay, then AUR packages from `packages/aur.txt` |
 | `blackarch` | Optional (asks first). Adds the BlackArch repo after you compare the SHA1 of `strap.sh` with the official site, then installs `packages/blackarch.txt` |
 | `system` | Copies `system/etc/` to `/etc` (login screen, time sync, power saving). Adds the systemd-boot update hook only if systemd-boot is installed |
-| `services` | Enables NetworkManager, Bluetooth, greetd, power profiles, time sync, ufw (SSH only), sshd and maintenance timers |
+| `services` | Enables NetworkManager, Bluetooth, greetd, power profiles, time sync, ufw (all incoming blocked) and maintenance timers |
 | `user` | Sets zsh as the login shell, installs fzf-tab, sets up rustup and user directories |
 | `dotfiles` | Runs `chezmoi apply` and generates the lock screen background |
 

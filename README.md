@@ -32,7 +32,8 @@ Everything uses the Catppuccin Mocha palette (bar, terminal, editor, launcher, l
 ├── system/etc/        files for /etc (installed by setup.sh)
 ├── setup.sh
 ├── README.md
-└── INSTALL.md
+├── INSTALL.md
+└── THIRD_PARTY_NOTICES.md
 ```
 
 Files ending in `.tmpl` are chezmoi templates. `{{ .chezmoi.homeDir }}` becomes the home directory of each machine, and the Git name/email come from the answers to `chezmoi init`.
@@ -108,6 +109,14 @@ gitleaks git "$(chezmoi source-path)"
 ## Notes
 
 - The greetd / PAM files in `system/etc/` unlock the GNOME keyring at login.
-- The firewall (ufw) only accepts SSH (port 22). If you don't use SSH: `sudo systemctl disable --now sshd` and `sudo ufw delete allow 22`.
+- The firewall (ufw) blocks all incoming connections and no SSH server runs. To log in remotely, enable it yourself: `sudo systemctl enable --now sshd && sudo ufw allow 22`.
 - gammastep's location is Tokyo (`dot_config/gammastep/config.ini`). Change it for other regions.
-- `dot_config/awesome/awesome-wm-widgets/` is only the volume widget from [awesome-wm-widgets](https://github.com/streetturtle/awesome-wm-widgets) (MIT License), patched so the icon doesn't disappear when PipeWire isn't ready at startup.
+
+## Third-party files
+
+These files are not mine and keep their own licenses (details in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)):
+
+- `dot_config/awesome/icons/` — battery and brightness icons from the GNOME [Adwaita icon theme](https://gitlab.gnome.org/GNOME/adwaita-icon-theme), recolored. CC BY-SA 3.0 (or LGPL-3.0).
+- `dot_config/awesome/awesome-wm-widgets/` — the volume widget from [awesome-wm-widgets](https://github.com/streetturtle/awesome-wm-widgets), patched so the icon doesn't disappear when PipeWire isn't ready at startup. MIT License (included).
+
+Everything else is my own configuration.

@@ -79,14 +79,13 @@ step_system() {
 
 step_services() {
     info "サービスの有効化"
-    sudo systemctl enable NetworkManager bluetooth greetd power-profiles-daemon systemd-timesyncd ufw sshd \
+    sudo systemctl enable NetworkManager bluetooth greetd power-profiles-daemon systemd-timesyncd ufw \
         fstrim.timer paccache.timer pkgfile-update.timer
     grep -q GenuineIntel /proc/cpuinfo && sudo systemctl enable thermald
     systemctl --user enable mpd.socket
-    # ファイアウォール: 外からは SSH だけ受け付ける
+    # ファイアウォール: 外からの接続はすべて拒否する (SSH サーバーも動かさない)
     sudo ufw default deny incoming
     sudo ufw default allow outgoing
-    sudo ufw allow 22
     sudo ufw --force enable
 }
 
