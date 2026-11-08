@@ -1,0 +1,6 @@
+{{/* chezmoi init のときに 1 回だけ聞く。答えは ~/.config/chezmoi/chezmoi.toml に保存され、リポジトリには入らない */ -}}
+{{- $name  := promptStringOnce . "git_name"  "Git の名前" -}}
+{{- $email := promptStringOnce . "git_email" "Git のメール (公開するなら GitHub の noreply アドレス)" -}}
+[data]
+    git_name = {{ $name | quote }}
+    git_email = {{ $email | quote }}

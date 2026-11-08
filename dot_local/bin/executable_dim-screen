@@ -1,0 +1,8 @@
+#!/bin/sh
+# xss-lock から呼ばれる。ロックの 30 秒前に画面を暗くし、操作されたら明るさを戻す
+prev=$(brightnessctl get)
+trap 'kill "$pid" 2>/dev/null; brightnessctl -q set "$prev"; exit 0' TERM INT HUP
+brightnessctl -q set 10%
+sleep infinity &
+pid=$!
+wait

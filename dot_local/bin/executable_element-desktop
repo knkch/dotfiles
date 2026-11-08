@@ -1,0 +1,11 @@
+#!/bin/sh
+# Element を、Jitsi 通話で画面共有できるようにして起動する (詳しくは ~/.local/lib/element-ua.js)
+# /usr/bin/element-desktop → electronNN の起動スクリプトは「製品版扱い」の変数を立てて --require を無効にするので、
+# Electron 本体を直接起動する (Linux ではこの違いで Element の動きは変わらない)
+ver=$(grep -o 'electron[0-9]*' /usr/bin/element-desktop | head -n 1)
+bin=/usr/lib/$ver/electron
+[ -x "$bin" ] || exec /usr/bin/element-desktop "$@"   # 見つからなければ普通に起動
+unset ELECTRON_FORCE_IS_PACKAGED
+export ELECTRON_IS_DEV=0
+export NODE_OPTIONS="--require $HOME/.local/lib/element-ua.js${NODE_OPTIONS:+ $NODE_OPTIONS}"
+exec "$bin" /usr/lib/element/app.asar "$@"

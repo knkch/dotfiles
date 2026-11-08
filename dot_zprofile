@@ -1,0 +1,6 @@
+# ~/.zprofile — ログイン時に 1 回だけ読む設定
+
+# 自分で置いたコマンド (~/.local/bin) を使えるようにする
+typeset -U path
+path=(~/.local/bin $path)
+export PATH

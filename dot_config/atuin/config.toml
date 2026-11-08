@@ -1,0 +1,9 @@
+# atuin の設定 (履歴はこの PC の中だけに保存。サーバーへの同期はしない)
+auto_sync = false
+update_check = false
+style = "compact"
+inline_height = 20       # 画面全体ではなく、下 20 行に一覧を出す
+enter_accept = false     # Enter ではすぐ実行せず、コマンドラインに入れるだけ (確認してから実行)
+filter_mode_shell_up_key_binding = "session"
+show_preview = true
+search_mode = "fuzzy"

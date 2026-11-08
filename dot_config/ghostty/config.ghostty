@@ -1,0 +1,65 @@
+# Ghostty の設定 (https://ghostty.org/docs/config)
+# Ctrl+Shift+, で再読み込み (一部の項目は新しいウィンドウから反映)
+
+#################################################### 見た目
+# バー・rofi と同じ Catppuccin Mocha の配色
+theme = Catppuccin Mocha
+# タブバーなども配色に合わせる
+window-theme = ghostty
+
+# フォント (英数字・アイコンは Hack Nerd Font、日本語は Noto Sans Mono CJK JP)
+font-family = Hack Nerd Font Mono
+font-family = Noto Sans Mono CJK JP
+# 「->」などが勝手に記号へ化けないようにする
+font-feature = -calt
+# 行間を少し広げて読みやすく
+adjust-cell-height = 10%
+
+# 背景を透過 (後ろは picom ですりガラス風にぼかす)
+background-opacity = 0.7
+# 画面分割中、選んでいない側を少し暗く
+unfocused-split-opacity = 0.8
+
+# 端の余白
+window-padding-x = 12
+window-padding-y = 8
+window-padding-balance = true
+window-padding-color = extend
+
+# カーソル: 細い縦線で点滅
+cursor-style = bar
+cursor-style-blink = true
+# シェルがカーソル形を上書きしないように
+shell-integration-features = no-cursor
+
+# Awesome のタイトルバーと二重にならないよう、Ghostty 自身のタイトルバーを消す
+gtk-titlebar = false
+gtk-wide-tabs = false
+
+#################################################### 使い勝手
+# 閉じるときの確認を出さない
+confirm-close-surface = false
+# 選択しただけでコピー (Ctrl+v で貼れる)
+copy-on-select = clipboard
+# 危ない複数行を貼るときは確認
+clipboard-paste-protection = true
+# 入力中はマウスカーソルを隠す
+mouse-hide-while-typing = true
+# スクロールバックを多めに (約 50MB)
+scrollback-limit = 50000000
+# Ctrl+クリックで URL を開く
+link-url = true
+
+#################################################### キー操作
+# 既定のもの: Ctrl+Shift+t 新しいタブ / Alt+数字 タブ切替 / Ctrl+Shift+o 右に分割 / Ctrl+Shift+e 下に分割
+#            Ctrl+Shift+Enter 分割を最大化 / Ctrl+Alt+矢印 分割の移動 / Ctrl+= Ctrl+- Ctrl+0 文字サイズ
+#            Ctrl+Shift+f 画面内を検索 / Ctrl+Shift+PageUp/Down タブの並べ替え
+# 追加: Ctrl+Shift+h/j/k/l で分割を移動 (vim 風)
+keybind = ctrl+shift+h=goto_split:left
+keybind = ctrl+shift+j=goto_split:bottom
+keybind = ctrl+shift+k=goto_split:top
+keybind = ctrl+shift+l=goto_split:right
+# 分割の大きさをそろえる
+keybind = ctrl+shift+equal=equalize_splits
+# スクロールバック全体をエディタで開く
+keybind = ctrl+shift+alt+f=write_scrollback_file:open

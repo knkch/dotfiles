@@ -1,0 +1,120 @@
+# starship のプロンプト設定 (https://starship.rs/config/)
+# 1 行目: [OS アイコン] [ディレクトリ] [git] [言語のバージョン]  ……  右端に [時間のかかったコマンド] [時刻]
+# 2 行目: ❯ (直前のコマンドが失敗したら赤)
+# 色は Catppuccin Mocha (バー・Ghostty と同じ)
+
+add_newline = true   # コマンドの出力とプロンプトの間を 1 行あける
+command_timeout = 800
+
+format = """
+[](mauve)$os$username$hostname[](fg:mauve bg:blue)$directory[](fg:blue bg:surface)$git_branch$git_status[](fg:surface bg:mantle)\
+$python$nodejs$rust$golang$c$lua$java[](fg:mantle)\
+$fill$cmd_duration$time
+$character"""
+
+palette = "mocha"
+
+[palettes.mocha]
+mantle   = "#181825"
+crust    = "#11111b"
+surface  = "#313244"
+text     = "#cdd6f4"
+blue     = "#89b4fa"
+mauve    = "#cba6f7"
+green    = "#a6e3a1"
+yellow   = "#f9e2af"
+peach    = "#fab387"
+red      = "#f38ba8"
+subtext  = "#a6adc8"
+
+[os]
+disabled = false
+style = "bg:mauve fg:crust"
+format = "[$symbol ]($style)"
+
+[os.symbols]
+Arch = "󰣇"
+
+[username]
+show_always = false  # SSH で入ったときだけユーザー名を出す
+style_user = "bg:mauve fg:crust bold"
+style_root = "bg:red fg:crust bold"
+format = "[$user ]($style)"
+
+[hostname]
+ssh_only = true
+style = "bg:mauve fg:crust"
+format = "[@$hostname ]($style)"
+
+[directory]
+style = "bg:blue fg:crust bold"
+format = "[ $path ]($style)[$read_only]($read_only_style)"
+read_only = "󰌾 "
+read_only_style = "bg:blue fg:crust"
+truncation_length = 4
+truncate_to_repo = false
+truncation_symbol = "…/"
+home_symbol = " ~"
+
+[git_branch]
+symbol = ""
+style = "bg:surface fg:mauve bold"
+format = "[ $symbol $branch ]($style)"
+
+[git_status]
+style = "bg:surface fg:yellow"
+format = "[($all_status$ahead_behind )]($style)"
+
+# 言語: そのディレクトリで使っているものだけ表示
+[python]
+symbol = ""
+style = "bg:mantle fg:yellow"
+format = "[ $symbol ($version)(\\($virtualenv\\)) ]($style)"
+
+[nodejs]
+symbol = ""
+style = "bg:mantle fg:green"
+format = "[ $symbol ($version) ]($style)"
+
+[rust]
+symbol = ""
+style = "bg:mantle fg:peach"
+format = "[ $symbol ($version) ]($style)"
+
+[golang]
+symbol = ""
+style = "bg:mantle fg:blue"
+format = "[ $symbol ($version) ]($style)"
+
+[c]
+symbol = ""
+style = "bg:mantle fg:blue"
+format = "[ $symbol ($version) ]($style)"
+
+[lua]
+symbol = ""
+style = "bg:mantle fg:blue"
+format = "[ $symbol ($version) ]($style)"
+
+[java]
+symbol = ""
+style = "bg:mantle fg:red"
+format = "[ $symbol ($version) ]($style)"
+
+[fill]
+symbol = " "
+
+[cmd_duration]
+min_time = 2000      # 2 秒以上かかったときだけ表示
+style = "fg:peach"
+format = "[󰥔 $duration]($style)  "
+
+[time]
+disabled = false
+time_format = "%H:%M"
+style = "fg:subtext"
+format = "[󰅐 $time]($style)"
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"

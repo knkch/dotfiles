@@ -1,0 +1,8 @@
+com.mitchellh.ghostty.desktop	ghostty	ghostty -e tmux new-session \; set-option destroy-unattached on
+thunar.desktop	thunar	
+com.anthropic.Claude.desktop	com.anthropic.claude	
+google-chrome.desktop	google-chrome	
+discord.desktop	discord	
+---
+horizon.client.desktop	horizon-client	
+webex.desktop	webex	

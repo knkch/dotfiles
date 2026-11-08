@@ -1,0 +1,27 @@
+## Arch Linux mirrorlist
+## 2026-11-08 に速度を測って速い順に並べた (rsync は pacman が使えないので外した)
+
+## 20.5 MB/s
+Server = http://mirror.hashy0917.net/archlinux/$repo/os/$arch
+## 20.3 MB/s
+Server = http://mirror.rain.ne.jp/archlinux/$repo/os/$arch
+## 19.2 MB/s
+Server = http://mirrors.cat.net/archlinux/$repo/os/$arch
+## 18.7 MB/s
+Server = https://mirror.rain.ne.jp/archlinux/$repo/os/$arch
+## 18.7 MB/s
+Server = http://mirror.aria-on-the-planet.es/archlinux/$repo/os/$arch
+## 17.5 MB/s
+Server = https://mirror.aria-on-the-planet.es/archlinux/$repo/os/$arch
+## 14.0 MB/s
+Server = https://www.miraa.jp/archlinux/$repo/os/$arch
+## 10.5 MB/s
+Server = http://www.miraa.jp/archlinux/$repo/os/$arch
+## 10.4 MB/s
+Server = https://mirrors.cat.net/archlinux/$repo/os/$arch
+## 9.1 MB/s
+Server = http://ftp.jaist.ac.jp/pub/Linux/ArchLinux/$repo/os/$arch
+## 5.2 MB/s
+Server = https://ftp.yz.yamagata-u.ac.jp/pub/linux/archlinux/$repo/os/$arch
+## 3.4 MB/s
+Server = http://ftp.yz.yamagata-u.ac.jp/pub/linux/archlinux/$repo/os/$arch

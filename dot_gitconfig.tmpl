@@ -1,0 +1,18 @@
+[user]
+	name = {{ .git_name }}
+	email = {{ .git_email }}
+[core]
+	pager = delta
+[interactive]
+	diffFilter = delta --color-only
+[delta]
+	navigate = true
+	line-numbers = true
+	syntax-theme = Catppuccin Mocha
+[merge]
+	conflictStyle = zdiff3
+[filter "lfs"]
+	required = true
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process

@@ -1,0 +1,8 @@
+brave-bin
+claude-code
+claude-desktop
+github-desktop-bin
+google-chrome
+i3lock-color
+omnissa-horizon-client
+webex-bin

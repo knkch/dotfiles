@@ -1,0 +1,36 @@
+#!/bin/sh
+# 画面ロック (xss-lock から呼ばれる。Super+Shift+Esc やアプリメニューのロックもここに来る)
+# i3lock-color なら Awesome の配色のリングと時計を出す。普通の i3lock なら背景画像だけ
+# 背景画像は make-lockscreen で作る (中央の鍵アイコンをリングが囲む)
+
+IMG="$HOME/.local/share/lockscreen/lock.png"
+
+# i3lock-color のバージョンは「2.13.c.5」のように .c. が入る
+if ! i3lock --version 2>&1 | grep -q '[0-9]\.c\.[0-9]'; then
+    exec i3lock -n -e -f -c 1e1e2e -i "$IMG"
+fi
+
+# 配色 (modules/theme.lua と同じ。末尾の 2 桁は不透明度)
+CLEAR=00000000
+OVERLAY=45475aff
+TEXT=cdd6f4ff
+SUBTEXT=7f849cff
+ACCENT=1e66f5ff
+SKY=89b4faff
+PEACH=fab387ff
+URGENT=f38ba8ff
+
+exec i3lock -n -e -f -c 1e1e2eff -i "$IMG" \
+    --indicator --radius 82 --ring-width 6 \
+    --inside-color $CLEAR --insidever-color $CLEAR --insidewrong-color $CLEAR \
+    --ring-color $OVERLAY --ringver-color $SKY --ringwrong-color $URGENT \
+    --line-uses-inside --separator-color $CLEAR \
+    --keyhl-color $ACCENT --bshl-color $PEACH \
+    --verif-text "" --wrong-text "" --noinput-text "" --lock-text "" --lockfailed-text "" \
+    --modif-color $SUBTEXT --layout-color $SUBTEXT \
+    --clock --time-str "%H:%M" --date-str "%m/%d (%a)" \
+    --time-font "Hack Nerd Font" --date-font "Hack Nerd Font" \
+    --time-size 84 --date-size 24 \
+    --time-color $TEXT --date-color $SUBTEXT \
+    --time-pos "ix:iy-250" --date-pos "ix:iy-200" \
+    --pass-media-keys --pass-volume-keys --pass-screen-keys

@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+"""ロック画面 (i3lock -i) 用の背景画像を作る。Awesome の配色 (modules/theme.lua) に合わせている。
+
+画面の解像度が変わったら作り直す:  make-lockscreen
+出力先: ~/.local/share/lockscreen/lock.png
+
+中央に鍵のアイコンを置く。パスワードを打ち始めると i3lock のリングがこのアイコンを囲む。
+"""
+import getpass
+import os
+import re
+import subprocess
+
+from PIL import Image, ImageDraw, ImageFont
+
+BASE, BASE_DARK = (0x1E, 0x1E, 0x2E), (0x11, 0x11, 0x1B)
+ACCENT = (0x1E, 0x66, 0xF5)
+TEXT, SUBTEXT = (0xCD, 0xD6, 0xF4), (0x7F, 0x84, 0x9C)
+
+FONT_ICON = "/usr/share/fonts/TTF/HackNerdFont-Regular.ttf"
+FONT_BOLD = "/usr/share/fonts/TTF/HackNerdFont-Bold.ttf"
+FONT_JA = "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc"
+LOCK_GLYPH = ""
+
+OUT = os.path.expanduser("~/.local/share/lockscreen/lock.png")
+
+
+def screen_size():
+    out = subprocess.run(["xrandr", "--current"], capture_output=True, text=True).stdout
+    m = re.search(r"current (\d+) x (\d+)", out)
+    return (int(m.group(1)), int(m.group(2))) if m else (1920, 1080)
+
+
+def centered_text(draw, cx, y, text, font, fill):
+    w = draw.textlength(text, font=font)
+    draw.text((cx - w / 2, y), text, font=font, fill=fill)
+
+
+def main():
+    w, h = screen_size()
+    cx, cy = w // 2, h // 2
+
+    # 上から下へ少し暗くなるグラデーション
+    img = Image.new("RGB", (w, h), BASE)
+    draw = ImageDraw.Draw(img)
+    for y in range(h):
+        t = y / (h - 1)
+        draw.line([(0, y), (w, y)], fill=tuple(round(a + (b - a) * t) for a, b in zip(BASE, BASE_DARK)))
+
+    # 中央の鍵のアイコン (i3lock のリングの半径は約 90px なので、その内側に収める)
+    r = 58
+    draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=ACCENT)
+    icon = ImageFont.truetype(FONT_ICON, 52)
+    box = draw.textbbox((0, 0), LOCK_GLYPH, font=icon)
+    draw.text((cx - (box[0] + box[2]) / 2, cy - (box[1] + box[3]) / 2), LOCK_GLYPH, font=icon, fill=(255, 255, 255))
+
+    # ユーザー名と案内
+    centered_text(draw, cx, cy + 130, getpass.getuser(), ImageFont.truetype(FONT_BOLD, 34), TEXT)
+    centered_text(draw, cx, cy + 186, "パスワードを入力して Enter でロック解除",
+                  ImageFont.truetype(FONT_JA, 20), SUBTEXT)
+
+    os.makedirs(os.path.dirname(OUT), exist_ok=True)
+    img.save(OUT)
+    print(OUT)
+
+
+if __name__ == "__main__":
+    main()

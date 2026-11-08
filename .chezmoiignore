@@ -1,0 +1,6 @@
+# Repo-only files (not deployed to $HOME)
+README.md
+INSTALL.md
+setup.sh
+packages/**
+system/**
