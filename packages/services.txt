@@ -1,0 +1,26 @@
+# setup.sh services で有効にするサービス (1 行に 1 つ)
+# "user:" で始まるものはユーザー単位 (systemctl --user)
+# 入っていないサービスは自動で飛ばす (例: AMD の PC では thermald)
+
+# ネットワーク・Bluetooth
+NetworkManager.service
+bluetooth.service
+
+# ログイン画面 (tuigreet)
+greetd.service
+
+# 電源・温度・時刻
+power-profiles-daemon.service
+thermald.service
+systemd-timesyncd.service
+
+# ファイアウォール
+ufw.service
+
+# 定期メンテナンス (SSD の TRIM、パッケージキャッシュの掃除、pkgfile の更新)
+fstrim.timer
+paccache.timer
+pkgfile-update.timer
+
+# 音楽 (MPD)
+user:mpd.socket

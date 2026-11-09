@@ -1,4 +1,4 @@
-# [Hotkey]
+[Hotkey]
 # トグルキーの修飾キーを押し続けたときは列挙
 # EnumerateWithTriggerKeys=True
 # Consume redundant Activate/Deactivate key
@@ -9,13 +9,17 @@
 # EnumerateBackwardKeys=
 # 切り替え時は第1入力メソッドをスキップする
 # EnumerateSkipFirst=False
+# 次の入力メソッドグループに切り替える
+EnumerateGroupForwardKeys=
+# 前の入力メソッドグループに切り替える
+EnumerateGroupBackwardKeys=
 # 修飾キーのショートカットをトリガーするための時間制限（ミリ秒）
 # ModifierOnlyKeyTimeout=250
 
-# [Hotkey/TriggerKeys]
-# 0=Control+space
-# 1=Zenkaku_Hankaku
-# 2=Hangul
+[Hotkey/TriggerKeys]
+0=Control+grave
+1=Zenkaku_Hankaku
+2=Hangul
 
 # [Hotkey/ActivateKeys]
 # 0=Hangul_Hanja
@@ -25,12 +29,6 @@
 
 # [Hotkey/AltTriggerKeys]
 # 0=Shift_L
-
-[Hotkey/EnumerateGroupForwardKeys]
-# 0=Super+space
-
-[Hotkey/EnumerateGroupBackwardKeys]
-# 0=Shift+Super+space
 
 # [Hotkey/PrevPage]
 # 0=Up

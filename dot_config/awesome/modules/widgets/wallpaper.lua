@@ -65,8 +65,8 @@ local function pick_other()
         function(out, _, _, code)
             local dir = out:gsub("%s+$", "")
             if code == 127 then
-                naughty.notify { title = "壁紙フォルダ",
-                                 text  = "フォルダ選択には zenity が必要です\nsudo pacman -S zenity" }
+                naughty.notification { title   = "壁紙フォルダ",
+                                       message = "フォルダ選択には zenity が必要です\nsudo pacman -S zenity" }
             elseif code == 0 and dir ~= "" then
                 use_folder(dir)
             end

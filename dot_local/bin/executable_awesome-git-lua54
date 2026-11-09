@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Awesome (AUR の awesome-git) を Lua 5.4 で組んで入れる / 更新する
+#   AUR の PKGBUILD は Arch の lua (5.5) を使うが、Awesome が対応しているのは 5.4 まで。
+#   そのため PKGBUILD の Lua を 5.4 (lua54 + lua54-lgi) に書き換えてからビルドする。
+#   yay -Syu では更新されないよう、pacman.conf の IgnorePkg に awesome-git を入れてある (setup.sh)。
+#   Awesome を更新したいときはこれを実行する。
+set -euo pipefail
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+git clone --depth 1 https://aur.archlinux.org/awesome-git.git "$tmp/awesome-git"
+cd "$tmp/awesome-git"
+
+sed -i -E \
+    -e "s/^_LUA_VER=.*/_LUA_VER=5.4/" \
+    -e "s/^([[:space:]]*(depends=\()?)'lua'/\1'lua54'/" \
+    -e "s/^([[:space:]]*)'lua-lgi(-git)?'/\1'lua54-lgi'/" \
+    PKGBUILD
+
+# 書き換えられたか確かめる (AUR 側の書き方が変わったら止める)
+srcinfo=$(makepkg --printsrcinfo)
+if ! grep -qx $'\tdepends = lua54' <<<"$srcinfo" ||
+   ! grep -qx $'\tdepends = lua54-lgi' <<<"$srcinfo" ||
+   grep -qE $'^\tdepends = lua(-lgi(-git)?)?$' <<<"$srcinfo" ||
+   ! grep -q '^_LUA_VER=5.4$' PKGBUILD; then
+    echo "PKGBUILD を Lua 5.4 用に書き換えられませんでした。$tmp/awesome-git/PKGBUILD を確認してください" >&2
+    trap - EXIT
+    exit 1
+fi
+
+makepkg -si --noconfirm
+echo "awesome-git (Lua 5.4) を入れました。反映: Super+Ctrl+r (Awesome を再起動)"

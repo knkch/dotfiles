@@ -22,8 +22,14 @@ WORDCHARS=${WORDCHARS//[\/=]/} # Ctrl+w で / や = の手前で止める
 
 #################################################### 補完
 autoload -Uz compinit
-mkdir -p ~/.cache/zsh
-compinit -d ~/.cache/zsh/zcompdump
+[[ -d ~/.cache/zsh ]] || mkdir -p ~/.cache/zsh
+# 補完ファイルの安全チェック (遅い) は 1 日 1 回だけ。それ以外は前回の結果をそのまま使う
+if [[ -n ~/.cache/zsh/zcompdump(#qN.mh+24) || ! -s ~/.cache/zsh/zcompdump ]]; then
+    compinit -d ~/.cache/zsh/zcompdump
+    { zcompile ~/.cache/zsh/zcompdump } &!   # 次回から速く読めるようにしておく
+else
+    compinit -C -d ~/.cache/zsh/zcompdump
+fi
 
 zmodload zsh/complist
 zstyle ':completion:*' menu select                                  # Tab で候補を矢印キーで選ぶ
@@ -98,6 +104,14 @@ alias update='yay'                  # システム全体を更新 (公式 + AUR)
 alias orphans='pacman -Qdtq'        # どこからも使われていないパッケージ
 
 #################################################### ツール
+# ツールの初期化スクリプトは毎回作らず ~/.cache/zsh にとっておく (ツールを更新したら作り直す)
+_cached_init() {
+    local name=$1; shift
+    local f=~/.cache/zsh/init-$name.zsh
+    [[ -s $f && $f -nt ${commands[$1]} ]] || "$@" >| $f
+    source $f
+}
+
 # fzf: Ctrl+r 履歴を検索 / Ctrl+t ファイルを選ぶ / Alt+c ディレクトリに移動 / **<Tab> であいまい補完
 if (( $+commands[fzf] )); then
     if (( $+commands[fd] )); then
@@ -109,15 +123,15 @@ if (( $+commands[fzf] )); then
       --color=bg+:#313244,spinner:#f5e0dc,hl:#f38ba8,fg:#cdd6f4,header:#f38ba8,info:#cba6f7,pointer:#f5e0dc
       --color=marker:#b4befe,fg+:#cdd6f4,prompt:#cba6f7,hl+:#f38ba8,border:#45475a'
     (( $+commands[bat] )) && export FZF_CTRL_T_OPTS="--preview 'bat --color=always --style=numbers --line-range=:200 {}'"
-    source <(fzf --zsh)
+    _cached_init fzf fzf --zsh
 fi
 
 # zoxide: z <名前の一部> でよく行くディレクトリに移動 / zi で一覧から選ぶ
-(( $+commands[zoxide] )) && eval "$(zoxide init zsh)"
+(( $+commands[zoxide] )) && _cached_init zoxide zoxide init zsh
 
 # atuin: Ctrl+r で履歴を検索 (実行した場所・成否・時間も記録。fzf の Ctrl+r を置き換える)
 # ↑↓ は今まで通り「入力途中の文字を含む履歴」をたどる
-(( $+commands[atuin] )) && eval "$(atuin init zsh --disable-up-arrow)"
+(( $+commands[atuin] )) && _cached_init atuin atuin init zsh --disable-up-arrow
 
 # lazygit: git を画面で操作 (tmux なら Ctrl+b → g でポップアップ)
 (( $+commands[lazygit] )) && alias lg='lazygit'
@@ -170,10 +184,11 @@ fi
 
 #################################################### プロンプト
 if (( $+commands[starship] )); then
-    eval "$(starship init zsh)"
+    _cached_init starship starship init zsh
 else
     PROMPT='%F{blue}%~%f %(?.%F{green}.%F{red})❯%f '
 fi
 
 # 自分用の追加設定はここに (無ければ何もしない)
 [[ -r ~/.zshrc.local ]] && source ~/.zshrc.local
+unfunction _cached_init

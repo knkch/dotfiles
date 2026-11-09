@@ -45,8 +45,6 @@ copy-on-select = clipboard
 clipboard-paste-protection = true
 # 入力中はマウスカーソルを隠す
 mouse-hide-while-typing = true
-# スクロールバックを多めに (約 50MB)
-scrollback-limit = 50000000
 # Ctrl+クリックで URL を開く
 link-url = true
 

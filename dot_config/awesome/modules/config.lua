@@ -13,6 +13,8 @@ config.editor_cmd = config.terminal .. " -e " .. config.editor
 config.screenshot_dir = os.getenv("HOME") .. "/Pictures/Screenshots"
 config.lock_cmd   = "loginctl lock-session"
 config.launcher_icon = "/usr/share/pixmaps/archlinux-logo.svg"
+-- Super+p の検索パネルの「Web で検索」で開く検索ページ (%s に検索語が入る)。既定のブラウザで開く
+config.web_search = "https://www.google.com/search?q=%s"
 
 config.tags = { "1", "2", "3", "4", "5", "6", "7", "8", "9" }
 

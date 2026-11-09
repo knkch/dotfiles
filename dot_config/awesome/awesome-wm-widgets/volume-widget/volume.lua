@@ -232,9 +232,13 @@ local function worker(user_args)
 		volume.widget = widget_types[widget_type].get_widget(args)
 	end
 
+	local last_stdout
 	local function update_graphic(widget, stdout)
 		-- 起動直後 (PipeWire 準備前) は出力が空。ここでエラーになると watch のタイマーが止まるので何もしない
 		if not string.match(stdout or "", "%d%%") then return end
+		-- 前回と同じなら描き直さない (毎秒アイコンを読み直すとバー全体が再描画されて重い)
+		if stdout == last_stdout then return end
+		last_stdout = stdout
 		local mute = string.match(stdout, "%[(o%D%D?)%]") -- \[(o\D\D?)\] - [on] or [off]
 		if mute == "off" then
 			widget:mute()
@@ -301,7 +305,9 @@ local function worker(user_args)
 		end)
 	))
 
-	watch(GET_VOLUME_CMD(card, device, mixctrl, value_type), refresh_rate, update_graphic, volume.widget)
+	-- (ローカル変更) タイマーを取っておき、volume.refresh() で今すぐ読み直せるようにする
+	local _, timer = watch(GET_VOLUME_CMD(card, device, mixctrl, value_type), refresh_rate, update_graphic, volume.widget)
+	volume.refresh = function() timer:emit_signal("timeout") end
 
 	return volume.widget
 end

@@ -3,15 +3,17 @@
 -- ・Tailscale (tailscale0 があって IP が付いているとき)
 -- ・NetworkManager を通さずに作った WireGuard (wg-quick など)
 -- 接続処理中は黄色、つながったら緑。ツールチップに一覧、クリックで接続の編集画面
+-- 更新は NetworkManager の D-Bus の知らせを受けたとき + NM の外の WireGuard / Tailscale 用に 30 秒ごと
 local awful = require("awful")
 local gears = require("gears")
 local wibox = require("wibox")
+local Gio   = require("lgi").Gio
 local theme = require("modules.theme")
 
 local C = theme.C
 local GLYPH = "\u{f099d}" -- nf-md-shield_lock
 
-local icon = wibox.widget { widget = wibox.widget.textbox }
+local icon = theme.bar_glyph() -- ほかのバーのアイコンと同じ並び方 (theme.ink_box)
 local text = wibox.widget { widget = wibox.widget.textbox }
 local widget = wibox.widget {
     icon,
@@ -20,12 +22,20 @@ local widget = wibox.widget {
     layout  = wibox.layout.fixed.horizontal,
 }
 local tooltip = awful.tooltip { objects = { widget } }
-
--- バーには theme.tile に包んで置く。未接続のときはタイルごと隠す
-local tile = theme.tile(widget, 12)
-tile.visible = false
+widget.visible = false -- 未接続のときは隠す (バーの状態のタイルの中に並ぶ)
 
 local TYPE_JA = { vpn = "VPN", wireguard = "WireGuard" }
+
+-- /sys/class/net のインターフェース名 (コマンドを起動せずに読む)
+local function interfaces()
+    local list = {}
+    local ok, e = pcall(Gio.File.enumerate_children, Gio.File.new_for_path("/sys/class/net"),
+        "standard::name", Gio.FileQueryInfoFlags.NONE, nil)
+    if not (ok and e) then return list end
+    for info in function() return e:next_file(nil) end do table.insert(list, info:get_name()) end
+    e:close(nil)
+    return list
+end
 
 local function exists(path)
     local f = io.open(path)
@@ -35,7 +45,7 @@ end
 
 local function show(conns)
     if #conns == 0 then
-        tile.visible = false
+        widget.visible = false
         return
     end
     local connecting = false
@@ -45,11 +55,11 @@ local function show(conns)
         table.insert(lines, string.format("%s %s (%s)", c.connecting and "…" or "●", c.name, c.kind))
     end
     local color = connecting and C.yellow or C.green
-    icon.markup = theme.span(color, GLYPH, 19)
+    icon:set(color, GLYPH)
     text.markup = theme.span(C.text, gears.string.xml_escape(conns[1].name) .. (#conns > 1 and (" +" .. (#conns - 1)) or ""))
     tooltip.text = (connecting and "VPN 接続処理中" or "VPN 接続中") .. "\n" .. table.concat(lines, "\n")
         .. "\nクリックで接続の編集"
-    tile.visible = true
+    widget.visible = true
 end
 
 local function update()
@@ -68,30 +78,34 @@ local function update()
         end
 
         -- NetworkManager 以外で作られた WireGuard
-        awful.spawn.easy_async_with_shell("ls /sys/class/net", function(ifaces)
-            for dev in ifaces:gmatch("%S+") do
-                if dev:match("^wg") and not nm_devices[dev] then
-                    table.insert(conns, { name = dev, kind = "WireGuard" })
-                end
+        for _, dev in ipairs(interfaces()) do
+            if dev:match("^wg") and not nm_devices[dev] then
+                table.insert(conns, { name = dev, kind = "WireGuard" })
             end
+        end
 
-            if not exists("/sys/class/net/tailscale0") then
-                show(conns)
-                return
+        if not exists("/sys/class/net/tailscale0") then
+            show(conns)
+            return
+        end
+        -- tailscale0 があってもログアウト中は IP が無いので、それで接続中かを判断する
+        awful.spawn.easy_async({ "tailscale", "ip", "-4" }, function(ip, _, _, code)
+            if code == 0 and ip:match("%d") then
+                table.insert(conns, { name = "Tailscale", kind = "Tailscale " .. ip:match("%S+") })
             end
-            -- tailscale0 があってもログアウト中は IP が無いので、それで接続中かを判断する
-            awful.spawn.easy_async({ "tailscale", "ip", "-4" }, function(ip, _, _, code)
-                if code == 0 and ip:match("%d") then
-                    table.insert(conns, { name = "Tailscale", kind = "Tailscale " .. ip:match("%S+") })
-                end
-                show(conns)
-            end)
+            show(conns)
         end)
     end)
 end
 
-gears.timer { timeout = 3, autostart = true, call_now = true, callback = update }
+-- 知らせが続けて来ても 1 秒まとめて 1 回だけ確かめる
+local soon = gears.timer { timeout = 1, single_shot = true, callback = update }
+Gio.bus_get_sync(Gio.BusType.SYSTEM):signal_subscribe("org.freedesktop.NetworkManager", nil, nil, nil, nil,
+    Gio.DBusSignalFlags.NONE, function(_, _, path)
+        if not path:find("/AccessPoint/") then soon:again() end -- 電波の強さの知らせは関係ない
+    end)
+gears.timer { timeout = 30, autostart = true, call_now = true, callback = update }
 
 widget:buttons(awful.button({ }, 1, function() awful.spawn("nm-connection-editor") end))
 
-return { widget = tile }
+return { widget = widget }

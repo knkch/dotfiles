@@ -6,7 +6,7 @@
 set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")" && pwd)
-STEPS=(pacman packages aur blackarch system services user dotfiles)
+STEPS=(pacman yay packages aur awesome blackarch system services user dotfiles)
 
 info() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m警告: %s\033[0m\n' "$*"; }
@@ -23,7 +23,26 @@ step_pacman() {
     info "pacman の設定"
     sudo sed -i -e 's/^#Color$/Color/' -e 's/^#ParallelDownloads.*/ParallelDownloads = 5/' /etc/pacman.conf
     grep -q '^ILoveCandy' /etc/pacman.conf || sudo sed -i '/^Color$/a ILoveCandy' /etc/pacman.conf
+    # awesome-git は Lua 5.4 で自分で組むので、yay -Syu で AUR 版 (Lua 5.5) に置き換えさせない
+    if ! grep -qE '^IgnorePkg\s*=.*\bawesome-git\b' /etc/pacman.conf; then
+        if grep -qE '^IgnorePkg\s*=' /etc/pacman.conf; then
+            sudo sed -i -E 's/^(IgnorePkg\s*=.*)$/\1 awesome-git/' /etc/pacman.conf
+        else
+            sudo sed -i -E 's/^#IgnorePkg\s*=.*$/IgnorePkg   = awesome-git/' /etc/pacman.conf
+        fi
+    fi
     sudo install -m644 "$REPO/system/etc/pacman.d/mirrorlist" /etc/pacman.d/mirrorlist
+}
+
+# yay (AUR ヘルパー) を最初に入れる。ビルドに base-devel と git が要る
+step_yay() {
+    info "yay (AUR ヘルパー)"
+    sudo pacman -Syu --needed base-devel git
+    command -v yay >/dev/null && return 0
+    local tmp; tmp=$(mktemp -d)
+    git clone --depth 1 https://aur.archlinux.org/yay-bin.git "$tmp/yay-bin"
+    (cd "$tmp/yay-bin" && makepkg -si --noconfirm)
+    rm -rf "$tmp"
 }
 
 step_packages() {
@@ -36,14 +55,20 @@ step_packages() {
 
 step_aur() {
     info "AUR のパッケージ (yay)"
-    if ! command -v yay >/dev/null; then
-        local tmp; tmp=$(mktemp -d)
-        git clone --depth 1 https://aur.archlinux.org/yay-bin.git "$tmp/yay-bin"
-        (cd "$tmp/yay-bin" && makepkg -si --noconfirm)
-        rm -rf "$tmp"
-    fi
+    command -v yay >/dev/null || step_yay
     local pkgs; list pkgs aur.txt
     yay -S --needed "${pkgs[@]}"
+}
+
+# Awesome は Lua 5.4 で組む (AUR の既定は 5.5 だが、Awesome が対応しているのは 5.4 まで)。
+# 手順は ~/.local/bin/awesome-git-lua54 (更新するときもそれを実行する)
+step_awesome() {
+    info "Awesome (awesome-git を Lua 5.4 で)"
+    if pacman -Qi awesome-git 2>/dev/null | grep -q 'lua54-lgi'; then
+        echo "Lua 5.4 版が入っているので飛ばす (更新は awesome-git-lua54)"
+        return 0
+    fi
+    bash "$REPO/dot_local/bin/executable_awesome-git-lua54"
 }
 
 # BlackArch はセキュリティ検証用のツール集。使わないなら飛ばしてよい
@@ -68,7 +93,8 @@ step_blackarch() {
 step_system() {
     info "システムの設定ファイル"
     local f
-    for f in greetd/config.toml pam.d/greetd systemd/timesyncd.conf.d/nict.conf udev/rules.d/50-pci-runtime-pm.rules; do
+    for f in greetd/config.toml pam.d/greetd systemd/timesyncd.conf.d/nict.conf udev/rules.d/50-pci-runtime-pm.rules \
+             systemd/zram-generator.conf sysctl.d/99-tuning.conf systemd/system/paccache.service.d/keep2.conf; do
         sudo install -D -m644 "$REPO/system/etc/$f" "/etc/$f"
     done
     # systemd-boot を使っているときだけ、systemd の更新時にブートローダーも更新する
@@ -77,16 +103,44 @@ step_system() {
     fi
 }
 
+# packages/services.txt のサービスを 1 つずつ有効にする (起動は再起動のときに行う)
+# 入っていないもの (例: AMD の PC の thermald) は飛ばし、失敗しても残りは続ける
 step_services() {
     info "サービスの有効化"
-    sudo systemctl enable NetworkManager bluetooth greetd power-profiles-daemon systemd-timesyncd ufw \
-        fstrim.timer paccache.timer pkgfile-update.timer
-    grep -q GenuineIntel /proc/cpuinfo && sudo systemctl enable thermald
-    systemctl --user enable mpd.socket
+    local line unit ok=() skipped=() failed=()
+    local -a sysctl
+    while read -r line; do
+        if [[ $line == user:* ]]; then
+            unit=${line#user:}; sysctl=(systemctl --user)
+        else
+            unit=$line; sysctl=(sudo systemctl)
+        fi
+        if ! "${sysctl[@]}" cat "$unit" >/dev/null 2>&1; then
+            skipped+=("$unit")
+        elif "${sysctl[@]}" enable "$unit" >/dev/null 2>&1; then
+            ok+=("$unit")
+        else
+            failed+=("$unit")
+        fi
+    done < <(grep -vhE '^\s*(#|$)' "$REPO/packages/services.txt")
+    echo "有効にした: ${ok[*]:-なし}"
+    (( ${#skipped[@]} )) && echo "入っていないので飛ばした: ${skipped[*]}"
+    (( ${#failed[@]} )) && warn "有効にできなかった: ${failed[*]}"
+
     # ファイアウォール: 外からの接続はすべて拒否する (SSH サーバーも動かさない)
-    sudo ufw default deny incoming
-    sudo ufw default allow outgoing
-    sudo ufw --force enable
+    # 設定ファイルに書くだけにして、次の起動から有効にする。
+    # (直後に ufw enable すると、カーネルが更新された直後はモジュールが読めずに失敗するため)
+    if command -v ufw >/dev/null; then
+        sudo ufw default deny incoming >/dev/null
+        sudo ufw default allow outgoing >/dev/null
+        sudo sed -i 's/^ENABLED=no/ENABLED=yes/' /etc/ufw/ufw.conf
+        if [[ -d /usr/lib/modules/$(uname -r) ]]; then
+            sudo ufw --force enable >/dev/null && echo "ファイアウォールを有効にした"
+        else
+            echo "ファイアウォールは次の起動から有効になります (カーネルが更新されたため)"
+        fi
+    fi
+    (( ${#failed[@]} == 0 ))
 }
 
 step_user() {
@@ -104,6 +158,10 @@ step_user() {
     ln -sf /usr/bin/rustup ~/.local/bin/rust-analyzer
     xdg-user-dirs-update
     mkdir -p ~/Pictures/Screenshots
+    # アプリの配色をダークに (GTK4 / ブラウザなどは gsettings を見る。GTK3 は settings.ini、Qt は qt5ct/qt6ct)
+    gsettings set org.gnome.desktop.interface color-scheme prefer-dark
+    gsettings set org.gnome.desktop.interface gtk-theme adw-gtk3-dark
+    gsettings set org.gnome.desktop.interface icon-theme Papirus-Dark
 }
 
 step_dotfiles() {
@@ -116,11 +174,24 @@ main() {
     [[ $EUID -ne 0 ]] || { echo "root ではなく普通のユーザーで実行してください (必要なところで sudo を使います)"; exit 1; }
     local steps=("$@")
     (( ${#steps[@]} )) || steps=("${STEPS[@]}")
-    local s
+    local s failed=()
     for s in "${steps[@]}"; do
         declare -F "step_$s" >/dev/null || { echo "不明な手順: $s (使えるもの: ${STEPS[*]})"; exit 1; }
-        "step_$s"
     done
+    # 1 つの手順が失敗しても残りは続け、最後にまとめて知らせる
+    for s in "${steps[@]}"; do
+        set +e
+        ( set -e; "step_$s" )
+        local rc=$?
+        set -e
+        (( rc == 0 )) || { warn "手順 $s が失敗しました"; failed+=("$s"); }
+    done
+    if (( ${#failed[@]} )); then
+        warn "失敗した手順: ${failed[*]}"
+        echo "原因を直してから、その手順だけやり直せます:  $0 ${failed[*]}"
+        exit 1
+    fi
+    [[ -d /usr/lib/modules/$(uname -r) ]] || warn "カーネルが更新されました。再起動してください"
     info "完了。再起動するとログイン画面 (tuigreet) から Awesome が起動します"
 }
 

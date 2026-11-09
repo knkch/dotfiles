@@ -1,8 +1,0 @@
-configuration {
-    modi: "drun,run,window";
-    font: "Hack Nerd Font 11";
-    show-icons: true;
-    terminal: "ghostty";
-    drun-display-format: "{name}";
-}
-@theme "~/.config/rofi/theme.rasi"

@@ -26,10 +26,12 @@ dbus-update-activation-environment --systemd DISPLAY XAUTHORITY
 export $(gnome-keyring-daemon --start --components=secrets 2>/dev/null)
 
 # 常駐アプリ
+# トレイの代わりにバーで状態を出すアプリ (fcitx5・nm-applet・blueman) のトレイアイコンを引き受けて隠す
+"$HOME/.config/awesome/scripts/sni-watcher.py" &
 fcitx5 -d &
 picom &
 blueman-applet &
-nm-applet &
+nm-applet --indicator &  # Wi-Fi のパスワード入力などのために裏で動かす (アイコンは隠れる)
 /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 & # 管理者権限を求めるパスワード画面
 udiskie --smart-tray &   # USB メモリなどを自動でマウント (挿している間だけトレイにアイコン)
 copyq &                  # クリップボード履歴 (Super+v。トレイアイコンは出さない)
@@ -40,4 +42,8 @@ gammastep &              # 夜は画面を暖色に (Super+Shift+n で切り替�
 xset s 570 30
 xss-lock -n "$HOME/.local/bin/dim-screen" --transfer-sleep-lock -- "$HOME/.local/bin/lockscreen" &
 
-exec awesome
+# Awesome のエラー出力をログインごとに残す (最新 5 回分。落ちたときの原因調べ用)
+logdir="$HOME/.cache/awesome/logs"
+mkdir -p "$logdir"
+ls -1t "$logdir"/stderr-2*.log 2>/dev/null | tail -n +5 | xargs -r rm -f
+exec awesome >"$logdir/stderr-$(date +%Y%m%d-%H%M%S).log" 2>&1

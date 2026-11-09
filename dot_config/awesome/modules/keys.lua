@@ -1,4 +1,10 @@
 -- キーボードとマウスの操作 (一覧は Super+s)
+-- Vim の操作を基本にしている:
+--   Super + h/j/k/l          フォーカスを左/下/上/右へ
+--   Super + Shift + h/j/k/l  ウィンドウを入れ替え (フローティングなら移動)
+--   Super + Ctrl + h/j/k/l   大きさを変える
+--   Super + [ / ]            前/次のタグ     Super + q  閉じる (:q)
+--   Super + p  検索パネル (アプリ・ウィンドウ・電源・Web)     Super + /  ウィンドウを検索
 local awful  = require("awful")
 local gears  = require("gears")
 local hotkeys_popup = require("awful.hotkeys_popup")
@@ -11,6 +17,7 @@ local brightness = require("modules.widgets.brightness")
 local mpd        = require("modules.widgets.mpd")
 local nightlight = require("modules.widgets.nightlight")
 local wallpaper  = require("modules.widgets.wallpaper")
+local launchers  = require("modules.widgets.launchers")
 
 local modkey = config.modkey
 local SUPER, SHIFT, CTRL, ALT = { modkey }, { modkey, "Shift" }, { modkey, "Control" }, { modkey, "Mod1" }
@@ -23,8 +30,49 @@ end
 local function raise_focused()
     if client.focus then client.focus:raise() end
 end
+-- その方向にウィンドウが無いとき (最大化レイアウトなど) は順番に切り替える
 local function focus_dir(dir)
-    return function() awful.client.focus.bydirection(dir); raise_focused() end
+    return function()
+        local before = client.focus
+        awful.client.focus.bydirection(dir)
+        if client.focus == before then
+            awful.client.focus.byidx((dir == "right" or dir == "down") and 1 or -1)
+        end
+        raise_focused()
+    end
+end
+
+local STEP = 40 -- フローティングのウィンドウを動かす・大きさを変える量 (px)
+local function is_floating(c)
+    return c.floating or awful.layout.get(c.screen) == awful.layout.suit.floating
+end
+
+-- Super+Shift+h/j/k/l: タイル中はその方向のウィンドウと入れ替え、フローティングなら移動
+local DELTA = { left = { -1, 0 }, down = { 0, 1 }, up = { 0, -1 }, right = { 1, 0 } }
+local function move_dir(dir)
+    return function()
+        local c = client.focus
+        if not c then return end
+        if is_floating(c) then
+            c:relative_move(DELTA[dir][1] * STEP, DELTA[dir][2] * STEP, 0, 0)
+        else
+            awful.client.swap.bydirection(dir)
+        end
+    end
+end
+
+-- Super+Ctrl+h/l: 幅、j/k: 高さ (タイル中はメイン領域の幅・ウィンドウの高さの割合)
+local function resize(dw, dh)
+    return function()
+        local c = client.focus
+        if c and is_floating(c) then
+            c:relative_move(0, 0, dw * STEP, dh * STEP)
+        elseif dw ~= 0 then
+            awful.tag.incmwfact(dw * 0.05)
+        elseif c then
+            awful.client.incwfact(dh * 0.05)
+        end
+    end
 end
 
 local keys = {}
@@ -36,7 +84,9 @@ local globalkeys = gears.table.join(
     key(SUPER, "w",      function() menu.main:show() end,                "右クリックメニュー", "Awesome"),
     key(SHIFT, "Escape", function() awful.spawn(config.lock_cmd) end,    "画面をロック",       "Awesome"),
     key(CTRL,  "r",      awesome.restart,                                "Awesome を再起動",   "Awesome"),
-    key(SHIFT, "q",      awesome.quit,                                   "ログアウト",         "Awesome"),
+    -- すぐにログアウトすると危ないので、確認つきの電源メニューを開く
+    key(SHIFT, "q",      launchers.power,                                "電源メニュー",       "Awesome"),
+    key(SHIFT, "e",      launchers.power,                                "電源メニュー",       "Awesome"),
     key(SUPER, "x", function()
         awful.prompt.run {
             prompt       = "Lua を実行: ",
@@ -49,8 +99,9 @@ local globalkeys = gears.table.join(
     -- 起動
     key(SUPER, "Return", function() awful.spawn(config.terminal_tmux) end,       "ターミナル (tmux)",       "起動"),
     key(SUPER, "a",      menu.toggle_whisker,                                    "アプリメニュー",          "起動"),
-    key(SUPER, "p",      function() awful.spawn("rofi -show drun") end,          "rofi (アプリ起動)",       "起動"),
-    key(SHIFT, "p",      function() awful.spawn("rofi -show window") end,        "rofi (ウィンドウ切替)",   "起動"),
+    -- アプリ・開いているウィンドウ・電源・Web 検索をタブで切り替える検索パネル
+    key(SUPER, "p",      function() launchers.open() end,                        "検索 (アプリ・ウィンドウ・電源・Web)", "起動"),
+    key(SUPER, "slash",  launchers.windows,                                      "ウィンドウを検索",        "起動"),
     key(SUPER, "r",      function() awful.screen.focused().mypromptbox:run() end, "コマンドを実行",         "起動"),
     key(SHIFT, "w",      wallpaper.open,                                          "壁紙を選ぶ",              "起動"),
     key(SUPER, "e",      function() awful.spawn(config.filemanager) end,         "ファイルマネージャー",    "起動"),
@@ -62,19 +113,29 @@ local globalkeys = gears.table.join(
         "画面全体を撮る (コピーも)", "スクリーンショット"),
 
     -- タグ
+    key(SUPER, "bracketleft",  awful.tag.viewprev,   "前のタグ",         "タグ"),
+    key(SUPER, "bracketright", awful.tag.viewnext,   "次のタグ",         "タグ"),
     key(SUPER, "Left",   awful.tag.viewprev,         "前のタグ",         "タグ"),
     key(SUPER, "Right",  awful.tag.viewnext,         "次のタグ",         "タグ"),
     key(SUPER, "Escape", awful.tag.history.restore,  "直前のタグに戻る", "タグ"),
 
     -- ウィンドウ
-    key(SUPER, "j",     function() awful.client.focus.byidx( 1) end, "次のウィンドウへ",        "ウィンドウ"),
-    key(SUPER, "k",     function() awful.client.focus.byidx(-1) end, "前のウィンドウへ",        "ウィンドウ"),
+    key(SUPER, "h",     focus_dir("left"),                           "左のウィンドウへ",        "ウィンドウ"),
+    key(SUPER, "j",     focus_dir("down"),                           "下のウィンドウへ",        "ウィンドウ"),
+    key(SUPER, "k",     focus_dir("up"),                             "上のウィンドウへ",        "ウィンドウ"),
+    key(SUPER, "l",     focus_dir("right"),                          "右のウィンドウへ",        "ウィンドウ"),
+    key(SHIFT, "h",     move_dir("left"),                            "左と入れ替え / 左へ移動",  "ウィンドウ"),
+    key(SHIFT, "j",     move_dir("down"),                            "下と入れ替え / 下へ移動",  "ウィンドウ"),
+    key(SHIFT, "k",     move_dir("up"),                              "上と入れ替え / 上へ移動",  "ウィンドウ"),
+    key(SHIFT, "l",     move_dir("right"),                           "右と入れ替え / 右へ移動",  "ウィンドウ"),
+    key(CTRL,  "h",     resize(-1, 0),                               "幅を狭く",                "ウィンドウ"),
+    key(CTRL,  "l",     resize( 1, 0),                               "幅を広く",                "ウィンドウ"),
+    key(CTRL,  "j",     resize(0,  1),                               "高さを大きく",            "ウィンドウ"),
+    key(CTRL,  "k",     resize(0, -1),                               "高さを小さく",            "ウィンドウ"),
     key(ALT,   "Right", focus_dir("right"),                          "右のウィンドウへ",        "ウィンドウ"),
     key(ALT,   "Left",  focus_dir("left"),                           "左のウィンドウへ",        "ウィンドウ"),
     key(ALT,   "Down",  focus_dir("down"),                           "下のウィンドウへ",        "ウィンドウ"),
     key(ALT,   "Up",    focus_dir("up"),                             "上のウィンドウへ",        "ウィンドウ"),
-    key(SHIFT, "j",     function() awful.client.swap.byidx( 1) end,  "次のウィンドウと入れ替え", "ウィンドウ"),
-    key(SHIFT, "k",     function() awful.client.swap.byidx(-1) end,  "前のウィンドウと入れ替え", "ウィンドウ"),
     key(SUPER, "u",     awful.client.urgent.jumpto,                  "通知のあるウィンドウへ",  "ウィンドウ"),
     key(SUPER, "Tab", function()
         awful.client.focus.history.previous()
@@ -86,18 +147,16 @@ local globalkeys = gears.table.join(
     end, "最小化を元に戻す", "ウィンドウ"),
 
     -- 画面
-    key(CTRL, "j", function() awful.screen.focus_relative( 1) end, "次の画面へ", "画面"),
-    key(CTRL, "k", function() awful.screen.focus_relative(-1) end, "前の画面へ", "画面"),
+    key(SUPER, "period", function() awful.screen.focus_relative( 1) end, "次の画面へ", "画面"),
+    key(SUPER, "comma",  function() awful.screen.focus_relative(-1) end, "前の画面へ", "画面"),
 
     -- レイアウト
     key(SUPER, "space", function() awful.layout.inc( 1) end,                "次のレイアウト",       "レイアウト"),
     key(SHIFT, "space", function() awful.layout.inc(-1) end,                "前のレイアウト",       "レイアウト"),
-    key(SUPER, "l",     function() awful.tag.incmwfact( 0.05) end,          "メインを広く",         "レイアウト"),
-    key(SUPER, "h",     function() awful.tag.incmwfact(-0.05) end,          "メインを狭く",         "レイアウト"),
-    key(SHIFT, "h",     function() awful.tag.incnmaster( 1, nil, true) end, "メインの数を増やす",   "レイアウト"),
-    key(SHIFT, "l",     function() awful.tag.incnmaster(-1, nil, true) end, "メインの数を減らす",   "レイアウト"),
-    key(CTRL,  "h",     function() awful.tag.incncol( 1, nil, true) end,    "列を増やす",           "レイアウト"),
-    key(CTRL,  "l",     function() awful.tag.incncol(-1, nil, true) end,    "列を減らす",           "レイアウト"),
+    key(ALT,   "l",     function() awful.tag.incnmaster( 1, nil, true) end, "メインの数を増やす",   "レイアウト"),
+    key(ALT,   "h",     function() awful.tag.incnmaster(-1, nil, true) end, "メインの数を減らす",   "レイアウト"),
+    key(ALT,   "j",     function() awful.tag.incncol( 1, nil, true) end,    "列を増やす",           "レイアウト"),
+    key(ALT,   "k",     function() awful.tag.incncol(-1, nil, true) end,    "列を減らす",           "レイアウト"),
 
     -- 音量・再生・明るさ (キーボードの専用キー)
     key({ }, "XF86AudioRaiseVolume",  function() volume.up() end,       "音量を上げる",   "音量・明るさ"),
@@ -159,6 +218,7 @@ keys.client = gears.table.join(
     key(CTRL,  "m", function(c) c.maximized_vertical = not c.maximized_vertical; c:raise() end,     "縦だけ最大化",       "ウィンドウ"),
     key(SHIFT, "m", function(c) c.maximized_horizontal = not c.maximized_horizontal; c:raise() end, "横だけ最大化",       "ウィンドウ"),
     key(SUPER, "n", function(c) c.minimized = true end,                                          "最小化",                 "ウィンドウ"),
+    key(SUPER, "q", function(c) c:kill() end,                                                    "閉じる (:q)",            "ウィンドウ"),
     key(SHIFT, "c", function(c) c:kill() end,                                                    "閉じる",                 "ウィンドウ"),
     key(CTRL,  "space", awful.client.floating.toggle,                                            "フローティングの切り替え", "ウィンドウ"),
     key(CTRL,  "Return", function(c) c:swap(awful.client.getmaster()) end,                       "メインと入れ替え",       "ウィンドウ"),

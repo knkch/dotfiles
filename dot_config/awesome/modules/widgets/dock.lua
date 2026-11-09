@@ -3,7 +3,7 @@
 --   中クリック: もう 1 つ新しく起動
 --   右クリック: メニュー (新しいウィンドウ / 左へ / 右へ / 区切りを入れる / Dock から外す / Dock に追加)
 --   ドラッグ: Dock に固定したアプリと区切りは、左右にドラッグして並べ替えられる
---   右端の ＋: インストール済みのアプリを検索して Dock に追加 (rofi)
+--   右端の ＋: インストール済みのアプリを検索して Dock に追加 (選択パネル)
 --   区切り線の右: Dock に無いけれど起動中のアプリ
 --   アイコンの下の印: 起動中 = 短い線、使用中 = 長い線
 -- 並びは ~/.config/awesome/dock-apps に保存する (Dock の右クリックメニューやドラッグで変えると書き換わる)
@@ -12,6 +12,7 @@ local gears         = require("gears")
 local wibox         = require("wibox")
 local menubar_utils = require("menubar.utils")
 local theme         = require("modules.theme")
+local picker        = require("modules.widgets.picker")
 local C = theme.C
 
 local ICON_SIZE  = 56
@@ -401,29 +402,25 @@ local function make_item(app, pinned, index)
     return item
 end
 
--- ＋ボタン: rofi でインストール済みのアプリを検索して追加
+-- ＋ボタン: 選択パネルでインストール済みのアプリを検索して追加
 local function pick_app()
-    local list = all_desktops(true) -- 新しく入れたアプリも出るように読み直す
-    local tmp = os.tmpname()
-    local f = io.open(tmp, "w")
-    for _, d in ipairs(list) do
-        f:write(d.name, "\0icon\31", d.icon or "application-x-executable", "\n")
+    local choices = {}
+    for _, d in ipairs(all_desktops(true)) do -- 新しく入れたアプリも出るように読み直す
+        table.insert(choices, { text = d.name, icon = d.icon, glyph = not d.icon and "\u{f08c6}" or nil, desktop = d })
     end
-    f:close()
-    menu_open = true -- 選んでいる間は Dock を出したまま
-    awful.spawn.easy_async({ "sh", "-c", 'rofi -dmenu -i -show-icons -format i -p "Dock に追加" < "$1"; rm -f "$1"', "sh", tmp },
-        function(out)
-            menu_open = false
-            hide_timer:again()
-            local d = list[(tonumber(out) or -1) + 1]
-            if not d then return end
+    picker.open {
+        prompt = "Dock に追加するアプリ",
+        items = choices,
+        on_select = function(it)
+            local d = it.desktop
             for _, p in ipairs(pins) do
                 if p.desktop == d.id then return end -- もう Dock にある
             end
             table.insert(pins, { desktop = d.id, class = d.class })
             commit()
             show()
-        end)
+        end,
+    }
 end
 
 local function plus_button()

@@ -34,8 +34,8 @@ function nightlight.toggle(notify)
         end
         update(not on)
         if notify then
-            naughty.notify { title = "ブルーライトカット",
-                             text  = on and "オフ" or "オン (夜は暖色になります)" }
+            naughty.notification { title   = "ブルーライトカット",
+                                   message = on and "オフ" or "オン (夜は暖色になります)" }
         end
     end)
 end

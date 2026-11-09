@@ -4,6 +4,8 @@ local gears = require("gears")
 local wibox = require("wibox")
 local hotkeys_popup = require("awful.hotkeys_popup")
 local config = require("modules.config")
+local power  = require("modules.power")
+local launchers = require("modules.widgets.launchers")
 
 local menu = {}
 
@@ -13,7 +15,7 @@ menu.main = awful.menu { items = {
     { "マニュアル",         config.terminal .. " -e man awesome" },
     { "設定を編集",         config.editor_cmd .. " " .. awesome.conffile },
     { "Awesome を再起動",   awesome.restart },
-    { "ログアウト",         function() awesome.quit() end },
+    { "ログアウト",         function() launchers.power_action(power.get("ログアウト")) end }, -- 確認してから
     { "ターミナルを開く",   config.terminal_tmux },
 } }
 

@@ -9,7 +9,7 @@ local ICON = gears.filesystem.get_configuration_dir() .. "icons/brightness.svg"
 local GET  = "brightnessctl -m"
 local SET  = "brightnessctl -m --min-value=1% set " -- 真っ暗にならないよう最低 1%
 
-local bar = theme.vcenter(theme.icon(ICON, 28))
+local bar = theme.bar_glyph(theme.C.text, "\u{f00df}") -- nf-md-brightness_6
 
 local popup = slider_popup {
     icon    = theme.icon(ICON, 28),

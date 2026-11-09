@@ -7,8 +7,9 @@ local awful    = require("awful")
 local gears    = require("gears")
 local wibox    = require("wibox")
 local menu_gen = require("menubar.menu_gen")
-local config   = require("modules.config")
+local menubar_utils = require("menubar.utils")
 local theme    = require("modules.theme")
+local power    = require("modules.power")
 
 local C = theme.C
 local esc, rounded, span = gears.string.xml_escape, theme.rounded, theme.span
@@ -18,6 +19,7 @@ local ROW_H    = 40
 local SIDE_W   = 210  -- カテゴリ欄の幅
 local LIST_W   = 400  -- アプリ一覧の幅
 local FAV_FILE = gears.filesystem.get_configuration_dir() .. "whisker-favorites.txt"
+local HISTORY  = gears.filesystem.get_cache_dir() .. "launch-history" -- 起動した回数 (検索パネルの並び順に使う)
 local DEFAULT_FAVS = { "Firefox", "Ghostty", "Yazi File Manager", "音量調節" }
 
 -- カテゴリの並び順・表示名・アイコン (中身が空のカテゴリは表示しない)
@@ -26,7 +28,7 @@ local CATS = {
     { key = "all",         name = "すべて",         icon = "\u{f00a}" },
     { key = "internet",    name = "インターネット", icon = "\u{f0ac}" },
     { key = "development", name = "開発",           icon = "\u{f121}" },
-    { key = "apps",        name = "ツール",         icon = "\u{f0ad}" },
+    { key = "security",    name = "セキュリティ",   icon = "\u{f132}" },
     { key = "multimedia",  name = "マルチメディア", icon = "\u{f001}" },
     { key = "graphics",    name = "グラフィック",   icon = "\u{f03e}" },
     { key = "office",      name = "オフィス",       icon = "\u{f15c}" },
@@ -38,37 +40,91 @@ local CATS = {
     { key = "other",       name = "その他",         icon = "\u{f141}" },
 }
 
--- .desktop ファイルの分類 (menubar の名前) → 上のカテゴリ
-local CAT_MAP = { tools = "system" }
+---------------------------------------------------------------- 分類
+-- .desktop ファイルの Categories をすべて見て、いちばん具体的なものでカテゴリを決める。
+-- 値は { カテゴリ, 強さ }。強さ 3 = 具体的 (WebBrowser など) / 2 = 大分類 (Network など) / 1 = あいまい (Utility など)
+local CATEGORY_RULES = {
+    -- インターネット
+    Network = { "internet", 2 }, WebBrowser = { "internet", 3 }, Email = { "internet", 3 },
+    InstantMessaging = { "internet", 3 }, Chat = { "internet", 3 }, IRCClient = { "internet", 3 },
+    VideoConference = { "internet", 3 }, Telephony = { "internet", 3 }, RemoteAccess = { "internet", 3 },
+    FileTransfer = { "internet", 3 }, P2P = { "internet", 3 }, News = { "internet", 3 }, Feed = { "internet", 3 },
+    -- 開発
+    Development = { "development", 2 }, IDE = { "development", 3 }, RevisionControl = { "development", 3 },
+    Building = { "development", 3 }, GUIDesigner = { "development", 3 }, Profiling = { "development", 3 },
+    Translation = { "development", 3 }, WebDevelopment = { "development", 3 },
+    -- セキュリティ
+    Security = { "security", 3 },
+    -- マルチメディア
+    AudioVideo = { "multimedia", 2 }, Audio = { "multimedia", 2 }, Video = { "multimedia", 2 },
+    Player = { "multimedia", 3 }, Recorder = { "multimedia", 3 }, Music = { "multimedia", 3 },
+    TV = { "multimedia", 3 }, DiscBurning = { "multimedia", 3 },
+    -- グラフィック
+    Graphics = { "graphics", 2 }, ["2DGraphics"] = { "graphics", 3 }, ["3DGraphics"] = { "graphics", 3 },
+    RasterGraphics = { "graphics", 3 }, VectorGraphics = { "graphics", 3 }, Photography = { "graphics", 3 },
+    Scanning = { "graphics", 3 },
+    -- オフィス
+    Office = { "office", 2 }, WordProcessor = { "office", 3 }, Spreadsheet = { "office", 3 },
+    Presentation = { "office", 3 }, Calendar = { "office", 3 }, ContactManagement = { "office", 3 },
+    Dictionary = { "office", 3 }, Finance = { "office", 3 },
+    -- ゲーム・教育
+    Game = { "games", 3 }, Education = { "education", 2 }, Science = { "education", 3 },
+    -- システム (ターミナル・ファイル・監視・バックアップ)
+    System = { "system", 2 }, TerminalEmulator = { "system", 3 }, FileManager = { "system", 3 },
+    Monitor = { "system", 3 }, PackageManager = { "system", 3 }, Emulator = { "system", 3 },
+    -- 設定
+    Settings = { "settings", 3 }, DesktopSettings = { "settings", 3 }, HardwareSettings = { "settings", 3 },
+    -- アクセサリ
+    Utility = { "utility", 1 }, TextEditor = { "utility", 2 }, Archiving = { "utility", 3 },
+    Compression = { "utility", 3 }, Calculator = { "utility", 3 }, Clock = { "utility", 3 },
+    Accessibility = { "utility", 3 },
+}
+-- 同じ強さで並んだときに優先するカテゴリ (具体的な用途を先に)
+local TIE_ORDER = { "security", "development", "internet", "settings", "multimedia", "graphics",
+                    "office", "games", "education", "system", "utility" }
 
--- アプリごとの振り分け (アプリ名 → カテゴリ)。.desktop の分類より優先する
-local OVERRIDES = {
-    ["Neovim"]                   = "development",
-    ["Vim"]                      = "development",
-    ["Claude"]                   = "development",
-    ["Ghostty"]                  = "apps",
-    ["Yazi File Manager"]        = "apps",
-    ["Htop"]                     = "system",
-    ["btop++"]                   = "system",
-    ["キーボードレイアウトビューアー"] = "system",
+-- 分類だけでは決めにくいアプリ (実行ファイル名で判断)
+local EXEC_RULES = {
+    -- セキュリティ診断・解析のツール (分類が「開発」「ネットワーク」になっているもの)
+    wireshark = "security", ghidra = "security", ["jadx-gui"] = "security", burpsuite = "security",
+    zaproxy = "security", msfconsole = "security", armitage = "security", maltego = "security",
+    bloodhound = "security", ["cutter"] = "security",
+    -- 会議・リモート (分類が Utility だけのもの)
+    CiscoCollabHost = "internet", webex = "internet", zoom = "internet", teams = "internet",
+    ["horizon-client"] = "internet",
+    -- Java の付属ツール、エディタの Vim (分類が TextEditor だけ)
+    jconsole = "development", jshell = "development", vim = "development", gvim = "development",
 }
 
--- メニューに出さないアプリ (検索にも出ない。rofi からは起動できる)
+-- アプリ名での振り分け (最後の手段)
+local OVERRIDES = {
+    ["キーボードレイアウトビューアー"] = "settings",
+    ["Xfce について"]                 = "system",
+}
+
+local function classify(e)
+    local exec = (e.Exec or e.cmdline or ""):match("^%s*(%S+)") or ""
+    exec = exec:match("([^/]+)$") or exec
+    if OVERRIDES[e.Name] then return OVERRIDES[e.Name] end
+    if EXEC_RULES[exec] then return EXEC_RULES[exec] end
+    local best, score = {}, 0
+    for _, c in ipairs(e.categories or {}) do
+        -- BlackArch のツールは独自の分類 (X-BlackArch-…) を持っている
+        local rule = c:match("^X%-BlackArch") and { "security", 3 } or CATEGORY_RULES[c]
+        if rule then
+            if rule[2] > score then best, score = { [rule[1]] = true }, rule[2]
+            elseif rule[2] == score then best[rule[1]] = true end
+        end
+    end
+    for _, k in ipairs(TIE_ORDER) do if best[k] then return k end end
+    return "other"
+end
+
+-- メニューに出さないアプリ (検索にも出ない)
 local HIDDEN = {
     ["Qt V4L2 test Utility"]          = true,
     ["Qt V4L2 video capture utility"] = true,
     ["Fcitx 5 移行ウィザード"]        = true,
-    ["Rofi"]                          = true,
-    ["Rofi Theme Selector"]           = true,
-}
-
--- 電源まわり (confirm = もう一度押したときだけ実行する)
-local POWER = {
-    { name = "ロック",     icon = "\u{f023}", cmd = config.lock_cmd },
-    { name = "サスペンド", icon = "\u{f186}", cmd = "systemctl suspend" },
-    { name = "ログアウト", icon = "\u{f08b}", run = function() awesome.quit() end, confirm = true },
-    { name = "再起動",     icon = "\u{f021}", cmd = "systemctl reboot",           confirm = true },
-    { name = "電源オフ",   icon = "\u{f011}", cmd = "systemctl poweroff",         confirm = true },
 }
 
 local HINT = span(C.subtext, "↑↓ 選択   Enter 起動   右クリック お気に入り   Esc 閉じる", 10)
@@ -107,6 +163,32 @@ local function fav_index(name)
     for i, n in ipairs(favs) do if n == name then return i end end
 end
 load_favs()
+
+-- 起動した回数 { [アプリ名] = 回数 }
+local function launch_counts()
+    local h = {}
+    local f = io.open(HISTORY)
+    if f then
+        for line in f:lines() do
+            local n, name = line:match("^(%d+)\t(.+)$")
+            if n then h[name] = tonumber(n) end
+        end
+        f:close()
+    end
+    return h
+end
+
+-- アプリを起動して、回数を数える (このメニューからも検索パネルからも)
+local function run_app(a)
+    local h = launch_counts()
+    h[a.name] = (h[a.name] or 0) + 1
+    local f = io.open(HISTORY, "w")
+    if f then
+        for k, v in pairs(h) do f:write(v, "\t", k, "\n") end
+        f:close()
+    end
+    awful.spawn(a.cmdline)
+end
 
 ---------------------------------------------------------------- 部品
 local status = wibox.widget { markup = HINT, widget = wibox.widget.textbox }
@@ -156,12 +238,15 @@ else
 end
 
 local hide -- 下で定義
+-- 電源ボタン (modules/power.lua。confirm のものはもう一度押したときだけ実行する)
 local power_buttons = { spacing = 6, layout = wibox.layout.fixed.horizontal }
 local power_bgs = {}
-for _, p in ipairs(POWER) do
+for _, p in ipairs(power.actions) do
+    -- アイコンは「見えている絵」の中心で丸の中央に置く (普通の文字として置くと、見えない余白の分ずれる)
+    local glyph = theme.ink_box()
+    glyph.markup = theme.glyph(C.text, p.glyph, 14)
     local b = wibox.widget {
-        { markup = span(C.text, p.icon, 14), align = "center", valign = "center",
-          widget = wibox.widget.textbox },
+        { glyph, halign = "center", valign = "center", widget = wibox.container.place },
         forced_width = 38, forced_height = 38,
         shape = gears.shape.circle, widget = wibox.container.background,
     }
@@ -183,7 +268,7 @@ for _, p in ipairs(POWER) do
             return
         end
         hide()
-        if p.run then p.run() else awful.spawn(p.cmd) end
+        power.run(p)
     end)))
     table.insert(power_buttons, b)
 end
@@ -238,7 +323,7 @@ local list_layout = wibox.layout.fixed.vertical()
 local function launch(a)
     if not a then return end
     hide()
-    awful.spawn(a.cmdline)
+    run_app(a)
 end
 
 local function paint_list()
@@ -296,7 +381,8 @@ for i = 1, ROWS do
     r.glyph = wibox.widget { markup = span(C.subtext, "\u{f2d0}", 14), align = "center",
                              forced_width = 28, widget = wibox.widget.textbox }
     r.name  = wibox.widget { ellipsize = "end", valign = "center", widget = wibox.widget.textbox }
-    r.star  = wibox.widget { valign = "center", widget = wibox.widget.textbox }
+    -- 幅を決めておく (Nerd Font のアイコンは文字幅より大きく、そのままだと右が切れる)
+    r.star  = wibox.widget { valign = "center", align = "center", forced_width = 22, widget = wibox.widget.textbox }
     r.bg = wibox.widget {
         {
             {
@@ -404,18 +490,49 @@ popup = theme.popup {
     layout  = wibox.layout.fixed.vertical,
 }
 
--- .desktop ファイルを読み直す (新しく入れたアプリも出るように、開くたびに更新)
-local function reload()
-    menu_gen.generate(function(entries)
-        local seen, new = {}, {}
+-- .desktop ファイルを読む (menubar の読み込みを使うが、分類は全部の Categories を見て自分で決める)
+local function scan(callback)
+    local dirs, done, entries = {}, 0, {}
+    for _, dir in ipairs(menu_gen.all_menu_dirs) do -- 無いフォルダ (/usr/local/share/applications など) は飛ばす
+        if gears.filesystem.dir_readable(dir) then table.insert(dirs, dir) end
+    end
+    if #dirs == 0 then return callback(entries) end
+    for _, dir in ipairs(dirs) do
+        menubar_utils.parse_dir(dir, function(list)
+            for _, e in ipairs(list or {}) do
+                if e.show and e.Name and e.cmdline then
+                    table.insert(entries, {
+                        name     = menubar_utils.rtrim(e.Name),
+                        cmdline  = menubar_utils.rtrim(e.cmdline),
+                        icon     = e.icon_path,
+                        category = classify(e),
+                    })
+                end
+            end
+            done = done + 1
+            if done == #dirs then callback(entries) end
+        end)
+    end
+end
+
+-- 表示するアプリの一覧 (名前の重複と HIDDEN を除いて、名前順)。検索パネルなどほかの場所でも使う
+local function list_apps(callback)
+    scan(function(entries)
+        local seen, out = {}, {}
         for _, e in ipairs(entries) do
-            if e.name and e.cmdline and not seen[e.name] and not HIDDEN[e.name] then
+            if not seen[e.name] and not HIDDEN[e.name] then
                 seen[e.name] = true
-                e.category = OVERRIDES[e.name] or CAT_MAP[e.category] or e.category
-                table.insert(new, e)
+                table.insert(out, e)
             end
         end
-        table.sort(new, function(a, b) return a.name:lower() < b.name:lower() end)
+        table.sort(out, function(a, b) return a.name:lower() < b.name:lower() end)
+        callback(out)
+    end)
+end
+
+-- 読み直す (新しく入れたアプリも出るように、開くたびに更新)
+local function reload()
+    list_apps(function(new)
         apps = new
         build_side()
         if query == "" then
@@ -442,7 +559,14 @@ local function on_key(mod, key, event)
     for _, m in ipairs(mod) do
         if m == "Mod4" and key == "a" then hide(); return end -- Super+a でもう一度押したら閉じる
         if m == "Control" or m == "Mod4" or m == "Mod1" then
-            if m == "Control" and key == "u" then query = ""; redraw() end
+            if m == "Control" then
+                if key == "u" then query = ""; redraw()          -- 検索語を消す
+                elseif key == "j" or key == "n" then move(1)      -- Vim 風に上下
+                elseif key == "k" or key == "p" then move(-1)
+                elseif key == "h" and query == "" then step_cat(-1) -- カテゴリを切り替え
+                elseif key == "l" and query == "" then step_cat(1)
+                end
+            end
             return
         end
     end
@@ -479,13 +603,20 @@ local function show()
     reload()
 end
 
--- ウィンドウをクリックしたら閉じる (デスクトップのクリックは rc.lua の root.buttons で閉じる)
+-- ウィンドウをクリックしたら閉じる (デスクトップのクリックは keys.lua の root.buttons で閉じる)
 client.connect_signal("button::press", function() hide() end)
 
 reload()
 
 return {
-    show   = show,
-    hide   = hide,
-    toggle = function() if popup.visible then hide() else show() end end,
+    show      = show,
+    hide      = hide,
+    toggle    = function() if popup.visible then hide() else show() end end,
+    list_apps = list_apps,
+    run_app   = run_app,       -- 起動して回数を数える
+    launch_counts = launch_counts,
+    category_name = function(key)
+        for _, c in ipairs(CATS) do if c.key == key then return c.name end end
+        return ""
+    end,
 }
